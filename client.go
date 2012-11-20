@@ -45,6 +45,8 @@ type Client struct {
 
 	cliSuppressGoAhead bool
 	cliEcho            bool
+
+	UnixWriteMode bool
 }
 
 func NewClient(conn net.Conn) (*Client, error) {
@@ -63,34 +65,26 @@ func Dial(network, addr string) (*Client, error) {
 	return NewClient(conn)
 }
 
-func (c *Client) SetTextMode(tm bool) {
-	c.textMode = tm
-}
-
-func (c *Client) TextMode() bool {
-	return c.textMode
-}
-
 func (c *Client) do(option byte) error {
-	log.Println("do:", option)
+	//log.Println("do:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdDo, option})
 	return err
 }
 
 func (c *Client) dont(option byte) error {
-	log.Println("dont:", option)
+	//log.Println("dont:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdDont, option})
 	return err
 }
 
 func (c *Client) will(option byte) error {
-	log.Println("will:", option)
+	//log.Println("will:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdWill, option})
 	return err
 }
 
 func (c *Client) wont(option byte) error {
-	log.Println("wont:", option)
+	//log.Println("wont:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdWont, option})
 	return err
 }
@@ -108,7 +102,7 @@ func (c *Client) cmd(cmd byte) error {
 	if err != nil {
 		return err
 	}
-	log.Println("received cmd:", cmd, o)
+	//log.Println("received cmd:", cmd, o)
 	switch o {
 	case optEcho:
 		// If echo need to be disabled at server side client
@@ -160,30 +154,34 @@ func (c *Client) cmd(cmd byte) error {
 	return err
 }
 
+func (c *Client) ReadByte() (byte, error) {
+loop:
+	b, err := c.r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	if b == cmdIAC {
+		b, err = c.r.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		if b != cmdIAC {
+			err = c.cmd(b)
+			if err != nil {
+				return 0, err
+			}
+			goto loop
+		}
+	}
+	return b, nil
+}
+
 func (c *Client) Read(buf []byte) (int, error) {
 	var n int
 	for n < len(buf) {
-		b, err := c.r.ReadByte()
+		b, err := c.ReadByte()
 		if err != nil {
 			return n, err
-		}
-		switch b {
-		case cmdIAC:
-			b, err = c.r.ReadByte()
-			if err != nil {
-				return n, err
-			}
-			if b != cmdIAC {
-				err = c.cmd(b)
-				if err != nil {
-					return n, err
-				}
-				continue
-			}
-		case CR:
-			if c.textMode {
-				continue // Skip
-			}
 		}
 		//log.Printf("char: %d %q", b, b)
 		buf[n] = b
@@ -198,8 +196,8 @@ func (c *Client) Read(buf []byte) (int, error) {
 
 func (c *Client) Write(buf []byte) (int, error) {
 	search := "\xff"
-	if c.textMode {
-		search = "\xff\r"
+	if c.UnixWriteMode {
+		search = "\xff\n"
 	}
 	var (
 		n   int
@@ -213,6 +211,7 @@ func (c *Client) Write(buf []byte) (int, error) {
 			n += k
 			break
 		}
+		log.Println("###idx", i)
 		k, err = c.Conn.Write(buf[:i])
 		n += k
 		if err != nil {
@@ -220,15 +219,15 @@ func (c *Client) Write(buf []byte) (int, error) {
 		}
 		switch buf[i] {
 		case LF:
-			k, err = c.Conn.Write([]byte{CR})
+			k, err = c.Conn.Write([]byte{CR, LF})
 		case cmdIAC:
-			k, err = c.Conn.Write([]byte{cmdIAC})
+			k, err = c.Conn.Write([]byte{cmdIAC, cmdIAC})
 		}
 		n += k
 		if err != nil {
 			break
 		}
-		buf = buf[i:]
+		buf = buf[i+1:]
 	}
 	return n, err
 }
