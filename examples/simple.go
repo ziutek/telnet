@@ -1,16 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/ziutek/telnet"
+	"log"
 	"os"
+	"time"
 )
 
 func checkErr(err error) {
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
+		log.Fatalln(os.Stderr, "Error:", err)
 	}
 }
 
@@ -23,33 +23,26 @@ func main() {
 
 	t, err := telnet.Dial("tcp", "127.0.0.1:23")
 	checkErr(err)
-	t.UnixWriteMode = true
-	r := bufio.NewReader(t)
-
-	line, err := r.ReadString(':')
+	err = t.SetDeadline(time.Now().Add(5 * time.Second))
 	checkErr(err)
-	fmt.Print(line)
+	t.SetUnixWriteMode(true)
+
+	checkErr(t.SkipUntil("login: "))
 
 	_, err = fmt.Fprintln(t, user)
 	checkErr(err)
 
-	line, err = r.ReadString(':')
-	checkErr(err)
-	fmt.Print(line)
+	checkErr(t.SkipUntil("ssword: "))
 
 	_, err = fmt.Fprintln(t, passwd)
 	checkErr(err)
 
-	line, err = r.ReadString('$')
-	checkErr(err)
-	fmt.Print(line)
+	checkErr(t.SkipUntil("$ "))
 
 	_, err = fmt.Fprintln(t, "ls -l")
 	checkErr(err)
 
-	for {
-		line, err = r.ReadString('$')
-		checkErr(err)
-		fmt.Print(line)
-	}
+	ls, err := t.ReadUntil("$ ")
+	checkErr(err)
+	os.Stdout.Write(ls)
 }

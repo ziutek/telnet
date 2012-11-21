@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"net"
+	"unicode"
 )
 
 const (
@@ -35,9 +35,9 @@ const (
 	optSuppressGoAhead = 3
 )
 
-// Client implements net.Conn interface for Telnet protocol plus some set Telnet
-// specific methods
-type Client struct {
+// Conn implements net.Conn interface for Telnet protocol plus some set of
+// Telnet specific methods.
+type Conn struct {
 	net.Conn
 	r *bufio.Reader
 
@@ -46,50 +46,56 @@ type Client struct {
 	cliSuppressGoAhead bool
 	cliEcho            bool
 
-	UnixWriteMode bool
+	unixWriteMode bool
 }
 
-func NewClient(conn net.Conn) (*Client, error) {
-	c := Client{
+func NewConn(conn net.Conn) (*Conn, error) {
+	c := Conn{
 		Conn: conn,
 		r:    bufio.NewReaderSize(conn, 256),
 	}
 	return &c, nil
 }
 
-func Dial(network, addr string) (*Client, error) {
+func Dial(network, addr string) (*Conn, error) {
 	conn, err := net.Dial(network, addr)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(conn)
+	return NewConn(conn)
 }
 
-func (c *Client) do(option byte) error {
+// SetUnixWriteMode sets flag that applies only to the Write method.
+// If set, Write converts any '\n' (LF) to '\r\n' (CR LF).
+func (c *Conn) SetUnixWriteMode(uwm bool) {
+	c.unixWriteMode = uwm
+}
+
+func (c *Conn) do(option byte) error {
 	//log.Println("do:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdDo, option})
 	return err
 }
 
-func (c *Client) dont(option byte) error {
+func (c *Conn) dont(option byte) error {
 	//log.Println("dont:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdDont, option})
 	return err
 }
 
-func (c *Client) will(option byte) error {
+func (c *Conn) will(option byte) error {
 	//log.Println("will:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdWill, option})
 	return err
 }
 
-func (c *Client) wont(option byte) error {
+func (c *Conn) wont(option byte) error {
 	//log.Println("wont:", option)
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdWont, option})
 	return err
 }
 
-func (c *Client) cmd(cmd byte) error {
+func (c *Conn) cmd(cmd byte) error {
 	switch cmd {
 	case cmdGA:
 		return nil
@@ -105,8 +111,8 @@ func (c *Client) cmd(cmd byte) error {
 	//log.Println("received cmd:", cmd, o)
 	switch o {
 	case optEcho:
-		// If echo need to be disabled at server side client
-		// need to signal server that it will use local echo
+		// Accept any echo configuration.
+		// TODO: enable/disable echo on server side.
 		switch cmd {
 		case cmdDo:
 			if !c.cliEcho {
@@ -128,10 +134,12 @@ func (c *Client) cmd(cmd byte) error {
 		switch cmd {
 		case cmdDo:
 			if !c.cliSuppressGoAhead {
+				c.cliSuppressGoAhead = true
 				err = c.will(o)
 			}
 		case cmdDont:
 			if c.cliSuppressGoAhead {
+				c.cliSuppressGoAhead = false
 				err = c.wont(o)
 			}
 		case cmdWill:
@@ -154,29 +162,62 @@ func (c *Client) cmd(cmd byte) error {
 	return err
 }
 
-func (c *Client) ReadByte() (byte, error) {
-loop:
-	b, err := c.r.ReadByte()
+func (c *Conn) tryReadByte() (b byte, retry bool, err error) {
+	b, err = c.r.ReadByte()
+	if err != nil || b != cmdIAC {
+		return
+	}
+	b, err = c.r.ReadByte()
 	if err != nil {
-		return 0, err
+		return
 	}
-	if b == cmdIAC {
-		b, err = c.r.ReadByte()
+	if b != cmdIAC {
+		err = c.cmd(b)
 		if err != nil {
-			return 0, err
+			return
 		}
-		if b != cmdIAC {
-			err = c.cmd(b)
-			if err != nil {
-				return 0, err
-			}
-			goto loop
-		}
+		retry = true
 	}
-	return b, nil
+	return
 }
 
-func (c *Client) Read(buf []byte) (int, error) {
+func (c *Conn) ReadByte() (b byte, err error) {
+	retry := true
+	for retry && err == nil {
+		b, retry, err = c.tryReadByte()
+	}
+	return
+}
+
+func (c *Conn) ReadRune() (r rune, size int, err error) {
+loop:
+	r, size, err = c.r.ReadRune()
+	if err != nil {
+		return
+	}
+	if r != unicode.ReplacementChar || size != 1 {
+		// Properly readed rune
+		return
+	}
+	// Bad rune
+	err = c.r.UnreadRune()
+	if err != nil {
+		return
+	}
+	// Read telnet command or escaped IAC
+	_, retry, err := c.tryReadByte()
+	if err != nil {
+		return
+	}
+	if retry {
+		// This bad rune was a begining of telnet command. Try read next rune.
+		goto loop
+	}
+	// Return escaped IAC as unicode.ReplacementChar
+	return
+}
+
+func (c *Conn) Read(buf []byte) (int, error) {
 	var n int
 	for n < len(buf) {
 		b, err := c.ReadByte()
@@ -194,9 +235,85 @@ func (c *Client) Read(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (c *Client) Write(buf []byte) (int, error) {
+func (c *Conn) ReadBytes(delim byte) ([]byte, error) {
+	var line []byte
+	for {
+		b, err := c.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		line = append(line, b)
+		if b == delim {
+			break
+		}
+	}
+	return line, nil
+}
+
+func (c *Conn) SkipBytes(delim byte) error {
+	for {
+		b, err := c.ReadByte()
+		if err != nil {
+			return err
+		}
+		if b == delim {
+			break
+		}
+	}
+	return nil
+}
+
+func (c *Conn) ReadString(delim byte) (string, error) {
+	bytes, err := c.ReadBytes(delim)
+	return string(bytes), err
+}
+
+func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, error) {
+	if len(patterns) == 0 {
+		return nil, nil
+	}
+	p := make([]string, len(patterns))
+	for i, s := range patterns {
+		if len(s) == 0 {
+			return nil, nil
+		}
+		p[i] = s
+	}
+	var line []byte
+	for {
+		b, err := c.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		if read {
+			line = append(line, b)
+		}
+		for i, s := range p {
+			if s[0] == b {
+				if len(s) == 1 {
+					return line, nil
+				}
+				p[i] = s[1:]
+			} else {
+				p[i] = patterns[i]
+			}
+		}
+	}
+	panic(nil)
+}
+
+func (c *Conn) ReadUntil(patterns ...string) ([]byte, error) {
+	return c.readUntil(true, patterns...)
+}
+
+func (c *Conn) SkipUntil(patterns ...string) error {
+	_, err := c.readUntil(false, patterns...)
+	return err
+}
+
+func (c *Conn) Write(buf []byte) (int, error) {
 	search := "\xff"
-	if c.UnixWriteMode {
+	if c.unixWriteMode {
 		search = "\xff\n"
 	}
 	var (
@@ -211,7 +328,6 @@ func (c *Client) Write(buf []byte) (int, error) {
 			n += k
 			break
 		}
-		log.Println("###idx", i)
 		k, err = c.Conn.Write(buf[:i])
 		n += k
 		if err != nil {
