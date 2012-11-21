@@ -235,6 +235,7 @@ func (c *Conn) Read(buf []byte) (int, error) {
 	return n, nil
 }
 
+// ReadBytes works like bufio.ReadBytes
 func (c *Conn) ReadBytes(delim byte) ([]byte, error) {
 	var line []byte
 	for {
@@ -250,6 +251,7 @@ func (c *Conn) ReadBytes(delim byte) ([]byte, error) {
 	return line, nil
 }
 
+// SkipBytes works like ReadBytes but skips all read data.
 func (c *Conn) SkipBytes(delim byte) error {
 	for {
 		b, err := c.ReadByte()
@@ -263,19 +265,20 @@ func (c *Conn) SkipBytes(delim byte) error {
 	return nil
 }
 
+// ReadString works like bufio.ReadString
 func (c *Conn) ReadString(delim byte) (string, error) {
 	bytes, err := c.ReadBytes(delim)
 	return string(bytes), err
 }
 
-func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, error) {
+func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, int, error) {
 	if len(patterns) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 	p := make([]string, len(patterns))
 	for i, s := range patterns {
 		if len(s) == 0 {
-			return nil, nil
+			return nil, 0, nil
 		}
 		p[i] = s
 	}
@@ -283,7 +286,7 @@ func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, error) {
 	for {
 		b, err := c.ReadByte()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if read {
 			line = append(line, b)
@@ -291,7 +294,7 @@ func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, error) {
 		for i, s := range p {
 			if s[0] == b {
 				if len(s) == 1 {
-					return line, nil
+					return line, i, nil
 				}
 				p[i] = s[1:]
 			} else {
@@ -302,12 +305,28 @@ func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, error) {
 	panic(nil)
 }
 
-func (c *Conn) ReadUntil(patterns ...string) ([]byte, error) {
+// ReadUntilIndex reads from connection until one of patterns occurs. Returns
+// returns read data and index of found pattern or error.
+func (c *Conn) ReadUntilIndex(patterns ...string) ([]byte, int, error) {
 	return c.readUntil(true, patterns...)
 }
 
+//  ReadUntil works like ReadUntilIndex but don't return pattern index.
+func (c *Conn) ReadUntil(patterns ...string) ([]byte, error) {
+	d, _, err := c.readUntil(true, patterns...)
+	return d, err
+}
+
+// SkipUntilIndex works like ReadUntilIndex but skips all read data
+// (is GC friendly).
+func (c *Conn) SkipUntilIndex(patterns ...string) (int, error) {
+	_, i, err := c.readUntil(false, patterns...)
+	return i, err
+}
+
+// SkipUntil works like ReadUntil but skips all read data (is GC friendly).
 func (c *Conn) SkipUntil(patterns ...string) error {
-	_, err := c.readUntil(false, patterns...)
+	_, _, err := c.readUntil(false, patterns...)
 	return err
 }
 
