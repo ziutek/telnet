@@ -181,6 +181,7 @@ func (c *Conn) tryReadByte() (b byte, retry bool, err error) {
 	return
 }
 
+// ReadByte works like bufio.ReadByte
 func (c *Conn) ReadByte() (b byte, err error) {
 	retry := true
 	for retry && err == nil {
@@ -189,6 +190,7 @@ func (c *Conn) ReadByte() (b byte, err error) {
 	return
 }
 
+// ReadRune works like bufio.ReadRune
 func (c *Conn) ReadRune() (r rune, size int, err error) {
 loop:
 	r, size, err = c.r.ReadRune()
@@ -217,6 +219,7 @@ loop:
 	return
 }
 
+// Read implements io.Reader.Read
 func (c *Conn) Read(buf []byte) (int, error) {
 	var n int
 	for n < len(buf) {
@@ -306,12 +309,12 @@ func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, int, error) {
 }
 
 // ReadUntilIndex reads from connection until one of patterns occurs. Returns
-// returns read data and index of found pattern or error.
+// read data and index of pattern or error.
 func (c *Conn) ReadUntilIndex(patterns ...string) ([]byte, int, error) {
 	return c.readUntil(true, patterns...)
 }
 
-//  ReadUntil works like ReadUntilIndex but don't return pattern index.
+// ReadUntil works like ReadUntilIndex but don't return pattern index.
 func (c *Conn) ReadUntil(patterns ...string) ([]byte, error) {
 	d, _, err := c.readUntil(true, patterns...)
 	return d, err
@@ -330,6 +333,7 @@ func (c *Conn) SkipUntil(patterns ...string) error {
 	return err
 }
 
+// Write implements io.Writer.Write
 func (c *Conn) Write(buf []byte) (int, error) {
 	search := "\xff"
 	if c.unixWriteMode {
