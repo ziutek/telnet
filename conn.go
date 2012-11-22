@@ -1,3 +1,5 @@
+// Package telnet provides simple interface for interacting with Telnet
+// connetion.
 package telnet
 
 import (
@@ -41,12 +43,10 @@ type Conn struct {
 	net.Conn
 	r *bufio.Reader
 
-	textMode bool
+	unixWriteMode bool
 
 	cliSuppressGoAhead bool
 	cliEcho            bool
-
-	unixWriteMode bool
 }
 
 func NewConn(conn net.Conn) (*Conn, error) {
@@ -309,7 +309,7 @@ func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, int, error) {
 }
 
 // ReadUntilIndex reads from connection until one of patterns occurs. Returns
-// read data and index of pattern or error.
+// read data and an index of pattern or error.
 func (c *Conn) ReadUntilIndex(patterns ...string) ([]byte, int, error) {
 	return c.readUntil(true, patterns...)
 }
@@ -320,20 +320,19 @@ func (c *Conn) ReadUntil(patterns ...string) ([]byte, error) {
 	return d, err
 }
 
-// SkipUntilIndex works like ReadUntilIndex but skips all read data
-// (is GC friendly).
+// SkipUntilIndex works like ReadUntilIndex but skips all read data.
 func (c *Conn) SkipUntilIndex(patterns ...string) (int, error) {
 	_, i, err := c.readUntil(false, patterns...)
 	return i, err
 }
 
-// SkipUntil works like ReadUntil but skips all read data (is GC friendly).
+// SkipUntil works like ReadUntil but skips all read data.
 func (c *Conn) SkipUntil(patterns ...string) error {
 	_, _, err := c.readUntil(false, patterns...)
 	return err
 }
 
-// Write implements io.Writer.Write
+// Write is for implement io.Writer
 func (c *Conn) Write(buf []byte) (int, error) {
 	search := "\xff"
 	if c.unixWriteMode {
