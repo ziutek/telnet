@@ -1,5 +1,5 @@
 // Package telnet provides simple interface for interacting with Telnet
-// connetion.
+// connection.
 package telnet
 
 import (
