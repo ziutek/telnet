@@ -37,12 +37,12 @@ func main() {
 	_, err = fmt.Fprintln(t, passwd)
 	checkErr(err)
 
-	checkErr(t.SkipUntil("$ "))
+	checkErr(t.SkipBytes('$'))
 
 	_, err = fmt.Fprintln(t, "ls -l")
 	checkErr(err)
 
-	ls, err := t.ReadUntil("$ ")
+	ls, err := t.ReadBytes('$')
 	checkErr(err)
 	os.Stdout.Write(ls)
 }

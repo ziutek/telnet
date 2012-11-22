@@ -219,7 +219,7 @@ loop:
 	return
 }
 
-// Read implements io.Reader.Read
+// Read is for implement an io.Reader interface
 func (c *Conn) Read(buf []byte) (int, error) {
 	var n int
 	for n < len(buf) {
@@ -332,7 +332,7 @@ func (c *Conn) SkipUntil(patterns ...string) error {
 	return err
 }
 
-// Write is for implement io.Writer
+// Write is for implement an io.Writer interface
 func (c *Conn) Write(buf []byte) (int, error) {
 	search := "\xff"
 	if c.unixWriteMode {
