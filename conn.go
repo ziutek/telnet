@@ -112,7 +112,6 @@ func (c *Conn) cmd(cmd byte) error {
 	switch o {
 	case optEcho:
 		// Accept any echo configuration.
-		// TODO: enable/disable echo on server side.
 		switch cmd {
 		case cmdDo:
 			if !c.cliEcho {
@@ -179,6 +178,15 @@ func (c *Conn) tryReadByte() (b byte, retry bool, err error) {
 		retry = true
 	}
 	return
+}
+
+// SetEcho tries to enable/disable echo on server side. Typically telnet
+// servers doesn't support this.
+func (c *Conn) SetEcho(echo bool) error {
+	if echo {
+		return c.do(optEcho)
+	}
+	return c.dont(optEcho)
 }
 
 // ReadByte works like bufio.ReadByte
@@ -274,12 +282,12 @@ func (c *Conn) ReadString(delim byte) (string, error) {
 	return string(bytes), err
 }
 
-func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, int, error) {
-	if len(patterns) == 0 {
+func (c *Conn) readUntil(read bool, delims ...string) ([]byte, int, error) {
+	if len(delims) == 0 {
 		return nil, 0, nil
 	}
-	p := make([]string, len(patterns))
-	for i, s := range patterns {
+	p := make([]string, len(delims))
+	for i, s := range delims {
 		if len(s) == 0 {
 			return nil, 0, nil
 		}
@@ -301,34 +309,34 @@ func (c *Conn) readUntil(read bool, patterns ...string) ([]byte, int, error) {
 				}
 				p[i] = s[1:]
 			} else {
-				p[i] = patterns[i]
+				p[i] = delims[i]
 			}
 		}
 	}
 	panic(nil)
 }
 
-// ReadUntilIndex reads from connection until one of patterns occurs. Returns
-// read data and an index of pattern or error.
-func (c *Conn) ReadUntilIndex(patterns ...string) ([]byte, int, error) {
-	return c.readUntil(true, patterns...)
+// ReadUntilIndex reads from connection until one of delimiters occurs. Returns
+// read data and an index of delimiter or error.
+func (c *Conn) ReadUntilIndex(delims ...string) ([]byte, int, error) {
+	return c.readUntil(true, delims...)
 }
 
-// ReadUntil works like ReadUntilIndex but don't return pattern index.
-func (c *Conn) ReadUntil(patterns ...string) ([]byte, error) {
-	d, _, err := c.readUntil(true, patterns...)
+// ReadUntil works like ReadUntilIndex but don't return a delimiter index.
+func (c *Conn) ReadUntil(delims ...string) ([]byte, error) {
+	d, _, err := c.readUntil(true, delims...)
 	return d, err
 }
 
 // SkipUntilIndex works like ReadUntilIndex but skips all read data.
-func (c *Conn) SkipUntilIndex(patterns ...string) (int, error) {
-	_, i, err := c.readUntil(false, patterns...)
+func (c *Conn) SkipUntilIndex(delims ...string) (int, error) {
+	_, i, err := c.readUntil(false, delims...)
 	return i, err
 }
 
 // SkipUntil works like ReadUntil but skips all read data.
-func (c *Conn) SkipUntil(patterns ...string) error {
-	_, _, err := c.readUntil(false, patterns...)
+func (c *Conn) SkipUntil(delims ...string) error {
+	_, _, err := c.readUntil(false, delims...)
 	return err
 }
 
