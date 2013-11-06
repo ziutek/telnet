@@ -7,8 +7,8 @@ import (
 	"bytes"
 	"fmt"
 	"net"
-	"unicode"
 	"time"
+	"unicode"
 )
 
 const (
