@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"time"
 	"unicode"
 )
 
@@ -59,6 +60,14 @@ func NewConn(conn net.Conn) (*Conn, error) {
 
 func Dial(network, addr string) (*Conn, error) {
 	conn, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	return NewConn(conn)
+}
+
+func DialTimeout(network, addr string, timeout time.Duration) (*Conn, error) {
+	conn, err := net.DialTimeout(network, addr, timeout)
 	if err != nil {
 		return nil, err
 	}

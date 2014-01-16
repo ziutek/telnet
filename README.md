@@ -1,1 +1,1 @@
-[documentation](http://gopkgdoc.appspot.com/pkg/github.com/ziutek/telnet)
+[documentation](http://godoc.org/github.com/ziutek/telnet)
