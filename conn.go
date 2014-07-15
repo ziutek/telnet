@@ -110,7 +110,7 @@ func (c *Conn) cmd(cmd byte) error {
 		return nil
 	case cmdDo, cmdDont, cmdWill, cmdWont:
 	default:
-		return fmt.Errorf("unknwn command: %d", cmd)
+		return fmt.Errorf("unknown command: %d", cmd)
 	}
 	// Read an option
 	o, err := c.r.ReadByte()
