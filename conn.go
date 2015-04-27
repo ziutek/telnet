@@ -152,7 +152,7 @@ func (c *Conn) cmd(cmd byte) error {
 	case cmdSB:
 		return c.skipSubneg()
 	default:
-		return fmt.Errorf("unknwn command: %d", cmd)
+		return fmt.Errorf("unknown command: %d", cmd)
 	}
 	// Read an option
 	o, err := c.r.ReadByte()
