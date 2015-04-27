@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/ziutek/telnet"
 	"log"
 	"os"
@@ -31,25 +30,38 @@ func sendln(t *telnet.Conn, s string) {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s USER PASSWD\n", os.Args[0])
+	if len(os.Args) != 5 {
+		log.Printf("Usage: %s {unix|cisco} HOST:PORT USER PASSWD", os.Args[0])
 		return
 	}
-	user, passwd := os.Args[1], os.Args[2]
+	typ, dst, user, passwd := os.Args[1], os.Args[2], os.Args[3], os.Args[4]
 
-	t, err := telnet.Dial("tcp", "127.0.0.1:23")
+	t, err := telnet.Dial("tcp", dst)
 	checkErr(err)
 	t.SetUnixWriteMode(true)
 
-	expect(t, "login: ")
-	sendln(t, user)
-	expect(t, "ssword: ")
-	sendln(t, passwd)
-	expect(t, "$")
-	sendln(t, "ls -l")
-
-	ls, err := t.ReadBytes('$')
+	var data []byte
+	switch typ {
+	case "unix":
+		expect(t, "login: ")
+		sendln(t, user)
+		expect(t, "ssword: ")
+		sendln(t, passwd)
+		expect(t, "$")
+		sendln(t, "ls -l")
+		data, err = t.ReadBytes('$')
+	case "cisco":
+		expect(t, "name: ")
+		sendln(t, user)
+		expect(t, "ssword: ")
+		sendln(t, passwd)
+		expect(t, ">")
+		sendln(t, "sh ver")
+		data, err = t.ReadBytes('>')
+	default:
+		log.Fatalln("bad host type: " + typ)
+	}
 	checkErr(err)
-
-	os.Stdout.Write(ls)
+	os.Stdout.Write(data)
+	os.Stdout.WriteString("\n")
 }
