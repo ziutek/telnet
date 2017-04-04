@@ -110,7 +110,7 @@ func (c *Conn) sub(opt byte, data ...byte) error {
 	if _, err := c.Conn.Write([]byte{cmdIAC, cmdSB, opt}); err != nil {
 		return err
 	}
-	if _, err := c.Write(data); err != nil {
+	if _, err := c.Conn.Write(data); err != nil {
 		return err
 	}
 	_, err := c.Conn.Write([]byte{cmdIAC, cmdSE})
