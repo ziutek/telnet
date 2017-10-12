@@ -193,10 +193,15 @@ func (c *Conn) cmd(cmd byte) error {
 				err = c.wont(o)
 			}
 		case cmdWill:
-			err = c.do(o)
+			if !c.cliSuppressGoAhead {
+				c.cliSuppressGoAhead = true
+				err = c.do(o)
+			}
 		case cmdWont:
-			err = c.dont(o)
-
+			if c.cliSuppressGoAhead {
+				c.cliSuppressGoAhead = false
+				err = c.dont(o)
+			}
 		}
 	case optNAWS:
 		if cmd != cmdDo {
