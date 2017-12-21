@@ -175,9 +175,15 @@ func (c *Conn) cmd(cmd byte) error {
 				err = c.wont(o)
 			}
 		case cmdWill:
-			err = c.do(o)
+			if !c.cliEcho {
+				c.cliEcho = true
+				err = c.do(o)
+			}
 		case cmdWont:
-			err = c.dont(o)
+			if c.cliEcho {
+				c.cliEcho = false
+				err = c.dont(o)
+			}
 		}
 	case optSuppressGoAhead:
 		// We don't use GA so can allways accept every configuration
