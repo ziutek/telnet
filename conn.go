@@ -5,6 +5,7 @@ package telnet
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -39,6 +40,9 @@ const (
 	//	optTerminalType    = 24
 	optNAWS = 31
 )
+
+// ErrNoData means a read call returns commands, but no data is avaiable
+var ErrNoData = errors.New("no data avaiable")
 
 // Conn implements net.Conn interface for Telnet protocol plus some set of
 // Telnet specific methods.
@@ -235,14 +239,19 @@ func (c *Conn) tryReadByte() (b byte, retry bool, err error) {
 	if err != nil {
 		return
 	}
-	if b != cmdIAC {
-		err = c.cmd(b)
-		if err != nil {
-			return
-		}
-		retry = true
+	if b == cmdIAC {
+		return
 	}
-	return
+
+	err = c.cmd(b)
+	if err != nil {
+		return
+	}
+
+	if c.r.Buffered() != 0 {
+		return b, true, nil
+	}
+	return b, false, ErrNoData
 }
 
 // SetEcho tries to enable/disable echo on server side. Typically telnet
@@ -298,6 +307,9 @@ func (c *Conn) Read(buf []byte) (int, error) {
 	for n < len(buf) {
 		b, retry, err := c.tryReadByte()
 		if err != nil {
+			if err == ErrNoData {
+				return n, nil
+			}
 			return n, err
 		}
 		if !retry {
@@ -318,6 +330,9 @@ func (c *Conn) ReadBytes(delim byte) ([]byte, error) {
 	for {
 		b, err := c.ReadByte()
 		if err != nil {
+			if err == ErrNoData {
+				return line, nil
+			}
 			return nil, err
 		}
 		line = append(line, b)
@@ -363,7 +378,7 @@ func (c *Conn) readUntil(read bool, delims ...string) ([]byte, int, error) {
 	for {
 		b, err := c.ReadByte()
 		if err != nil {
-			return nil, 0, err
+			return line, 0, err
 		}
 		if read {
 			line = append(line, b)
@@ -379,7 +394,6 @@ func (c *Conn) readUntil(read bool, delims ...string) ([]byte, int, error) {
 			}
 		}
 	}
-	panic(nil)
 }
 
 // ReadUntilIndex reads from connection until one of delimiters occurs. Returns
