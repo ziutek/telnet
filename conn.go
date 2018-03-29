@@ -296,17 +296,16 @@ loop:
 func (c *Conn) Read(buf []byte) (int, error) {
 	var n int
 	for n < len(buf) {
-		b, err := c.ReadByte()
-		if err != nil {
+		b, retry, err := c.tryReadByte()
+		if err != nil || retry && c.r.Buffered() == 0 {
+			// Do not block if can't return more data.
 			return n, err
 		}
-		//log.Printf("char: %d %q", b, b)
+		if retry {
+			continue
+		}
 		buf[n] = b
 		n++
-		if c.r.Buffered() == 0 {
-			// Try don't block if can return some data
-			break
-		}
 	}
 	return n, nil
 }

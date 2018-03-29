@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/ziutek/telnet"
 	"log"
 	"os"
 	"time"
+
+	"github.com/ziutek/telnet"
 )
 
 const timeout = 10 * time.Second
