@@ -297,15 +297,17 @@ func (c *Conn) Read(buf []byte) (int, error) {
 	var n int
 	for n < len(buf) {
 		b, retry, err := c.tryReadByte()
-		if err != nil || retry && c.r.Buffered() == 0 {
-			// Do not block if can't return more data.
+		if err != nil {
 			return n, err
 		}
-		if retry {
-			continue
+		if !retry {
+			buf[n] = b
+			n++
 		}
-		buf[n] = b
-		n++
+		if n > 0 && c.r.Buffered() == 0 {
+			// Don't block if can't return more data.
+			return n, err
+		}
 	}
 	return n, nil
 }
