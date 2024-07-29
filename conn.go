@@ -218,7 +218,7 @@ func (c *Conn) cmd(cmd byte) error {
 			break
 		}
 		// Reply with max window size: 65535x65535
-		err = c.sub(o, 255, 255, 255, 255)
+		err = c.sub(o, 255, 255, 255, 255, 255, 255, 255, 255)
 	default:
 		// Deny any other option
 		err = c.deny(cmd, o)
